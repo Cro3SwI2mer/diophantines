@@ -1,7 +1,5 @@
 include C:\MASM614\include\console.inc
 
-;TODO: elem should be dd
-
 .data
 
 N equ 100000
