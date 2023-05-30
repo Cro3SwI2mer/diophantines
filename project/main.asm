@@ -10,17 +10,17 @@ a equ 48271
 
 m equ 2147483647
 
-solved db 0
+solved db 1
 
-elem db ? ;random number
+solind dd -1 ;index of possible solution in X
+
+elem dd ? ;random number
 
 M db ? ;size of population
 
 L db ? ;num of variables per individual
 
-Lf db ? ;num of gens from father
-
-Lm db ? ;num of gens from mother
+LM dd ? ;L*M
 
 A db N dup(?) ;coefficients, size = L
 
@@ -30,15 +30,17 @@ X db N dup(?) ;population, size = M * L
 
 vint dd N dup(?) ;A_i*X_i array for single X
 
-V dd N dup(?) ;array of resifuals for single population
+V dd N dup(?) ;array of residuals for single population
 
-arrsum dd ?
+arrsum dd ? ;last result of sum_array proc
 
 V_balanced dd N dup(?) ;V_balanced_i = sum{V} / V_i * [*smth]
 
 prefarr dd N dup (?)
 
-X_next db N dup(?) ;next population after current X
+child db N dup (?) ;single child
+
+X_new db N dup(?) ;next population after current X
 
 smth equ 10000
 
@@ -50,13 +52,17 @@ generate_single proc
    
     push edx
     push ebx
+    
+    mov eax, elem
+    mov ebx, m
+    mov edx, a
 
     mul edx
     div ebx
     
     mov eax, edx
     
-    mov elem, al
+    mov elem, eax
     
     pop ebx
     pop edx
@@ -73,6 +79,10 @@ generate_array proc
     push ecx
     push edx
     push ebp
+    
+    mov eax, elem
+    mov ebx, m
+    mov edx, a
     
     mov [ebp], al
     ;outintln [ebp]
@@ -95,10 +105,8 @@ generate_array proc
         mov [ebp + esi], dl
         
         mov eax, edx
-        ;cbw
-        ;cwde
         
-        mov elem, al
+        mov elem, eax
         
         pop edx
         
@@ -228,12 +236,13 @@ calculate_residuals proc
             
             equation_solved:
             
-                mov solved, 1
+                mov solved, 0
+                mov solind, esi
                 jmp transfer
                 
             equation_not_solved:
             
-                mov solved, 0
+                mov solved, 1
                 jmp transfer
             
             ;jmp transfer
@@ -400,18 +409,16 @@ select_single_ids proc
     
     lea ebp, V_balanced
     call sum_array
-    
-    mov ebx, arrsum
-    mov edx, a
-    
-    xor eax, eax
-    mov al, elem
-    cbw
-    cwde
-    
+
     call generate_single
-    outstr 'first thrown number: '
-    outintln eax
+    
+    mov edx, 0
+    mov ebx, arrsum
+    div ebx
+    mov eax, edx
+    
+    ;outstr 'first thrown number: '
+    ;outintln eax
     
     lea ebp, prefarr
     mov cl, M
@@ -432,12 +439,18 @@ select_single_ids proc
     
     lfirst_end:
     
-    outstr 'father: '
-    outintln esi
+    ;outstr 'father: '
+    ;outintln esi
     
     call generate_single
-    outstr 'second thrown number: '
-    outintln eax
+    
+    mov edx, 0
+    mov ebx, arrsum
+    div ebx
+    mov eax, edx
+    
+    ;outstr 'second thrown number: '
+    ;outintln eax
     
     lea ebp, prefarr
     mov cl, M
@@ -458,8 +471,8 @@ select_single_ids proc
     
     lsecond_end:
     
-    outstr 'mother: '
-    outintln edi
+    ;outstr 'mother: '
+    ;outintln edi
     
     pop ebp
     pop edx
@@ -470,55 +483,350 @@ select_single_ids proc
     ret
 select_single_ids endp
 
-new_generation proc
+new_child proc
 
     push eax
     push ebx
-
+    push ecx
+    push edx
+    push ebp
+    push esi
+    push edi
+    
+    lea ebp, X
+    
+    call select_single_ids
+    
+    mov al, L
+    cbw
+    cwde
+    mul esi
+    mov esi, eax
+    
+    mov al, L
+    cbw
+    cwde
+    mul edi
+    mov edi, eax
+    
     mov al, L
     cbw
     cwde
     mov ebx, eax
     xor eax, eax
     
-    mov edx, a
+    ;mov al, [ebp+edi]
+    ;outintln al
     
-    outstr 'current random value: '
-    outintln elem
-    mov al, elem
-    cbw
-    cwde
+    ;outintln ecx
     
-    outintln edx
-    outintln ebx
-    mul edx
-    div ebx
+    lstart_nch:
+        
+        xor edx, edx
+        mov dh, [ebp+esi]
+        mov dl, [ebp+edi]
+        
+        ;outstr 'father x_i: '
+        ;outintln dh
+        ;outstr 'mother x_i: '
+        ;outintln dl
+        ;outnumln dx,,b
+        
+        ;cannnot do that with ah and al as 2nd operand: error A2070. Why?
+        
+        call generate_single
+        and al, 7
+        
+        mov cl, al
+        
+        shr dh, cl
+        shl dh, cl
+        
+        shl dl, cl
+        shr dl, cl
+        
+        ;shr dh, 4
+        ;shl dh, 4
+        
+        ;shl dl, 4
+        ;shr dl, 4
+        
+        ;outnumln dx,,b
+        
+        xor dh, dl
+        
+        ;outnumln dh,,b
+        
+        mov al, L
+        cbw
+        cwde
+        
+        ;outint eax
+        ;outchar ' '
+        ;outint ecx
+        ;outchar ' '
+        
+        sub eax, ebx
+        
+        ;outint eax
+        ;outchar ' '
+        ;outint esi
+        ;outchar ' '
+        ;outintln edi
+        
+        ;outstr 'new x_i: '
+        ;outintln dh
+        
+        mov child[eax], dh
+        
+        ;outintln dh
+        
+        inc esi
+        inc edi
+        dec ebx
+        cmp ebx, 0
+        jne lstart_nch
+        jmp lend_nch
     
-    mov eax, edx
-    outnumln eax,,b
+    lend_nch:
     
-    mov elem, al
-    outnumln al,,b
+    pop edi
+    pop esi
+    pop ebp
+    pop edx
+    pop ecx
+    pop ebx
+    pop eax
+
+    ret
+new_child endp
+
+new_generation proc
+
+    push eax
+    push ebx
+    push ecx
+    push edx
+    push ebp
+    push esi
+    push edi
+
+    lea ebp, X_new
+    lea ebx, child
     
+    mov ch, M
+    mov esi, 0
+    
+    ext_loop_ngen_start:
+    
+        mov cl, L
+        mov edi, 0
+        
+        call new_child
+        
+        int_loop_ngen_start:
+        
+            mov eax, esi
+            mul L
+            add eax, edi
+            
+            mov dl, [ebx+edi]
+            mov [ebp+eax], dl
+            
+            ;outintln dl
+            
+            inc edi
+            dec cl
+            cmp cl, 0
+            jne int_loop_ngen_start
+            jmp int_loop_ngen_end
+        
+        int_loop_ngen_end:
+        
+        inc esi
+        dec ch
+        cmp ch, 0
+        jne ext_loop_ngen_start
+        jmp ext_loop_ngen_end
+    
+    ext_loop_ngen_end:
+    
+    mov cl, L
+    mov edi, 0
+    
+    new_single_start:
+    
+        call generate_single
+        
+        mov [ebp+edi], al
+        
+        inc edi
+        dec cl
+        cmp cl, 0
+        jne new_single_start
+        jmp new_single_end
+    
+    new_single_end:
+    
+    pop edi
+    pop esi
+    pop ebp
+    pop edx
+    pop ecx
     pop ebx
     pop eax
 
     ret
 new_generation endp
 
+swap_generations proc
+
+    push eax
+    push ebx
+    push ecx
+    push edx
+    push ebp
+    push esi
+    push edi
+
+    lea ebp, X
+    lea ebx, X_new
+    
+    mov ch, M
+    mov esi, 0
+    
+    ext_loop_sgen_start:
+    
+        mov cl, L
+        mov edi, 0
+        
+        int_loop_sgen_start:
+        
+            mov eax, esi
+            mul L
+            add eax, edi
+            
+            mov dh, [ebx+eax]
+            mov [ebp+eax], dh
+            ;mov [ebx+eax], 0
+            
+            ;outstr 'x'
+            ;outint edi
+            ;outstr ': '
+            ;outint dh
+            ;outstr '; '
+            
+            inc edi
+            dec cl
+            cmp cl, 0
+            jne int_loop_sgen_start
+            jmp int_loop_sgen_end
+        
+        int_loop_sgen_end:
+        
+        ;outcharln ' '
+        
+        inc esi
+        dec ch
+        cmp ch, 0
+        jne ext_loop_sgen_start
+        jmp ext_loop_sgen_end
+    
+    ext_loop_sgen_end:
+    
+    pop edi
+    pop esi
+    pop ebp
+    pop edx
+    pop ecx
+    pop ebx
+    pop eax  
+
+    ret
+swap_generations endp
+
+mutate proc
+
+    push eax
+    push ebx
+    push ecx
+    push edx
+    push ebp
+    push esi
+    push edi
+    
+    lea ebp, X
+    
+    mov ch, M
+    mov esi, 0
+    
+    xor eax, eax
+    
+    mutate_loop_start:
+    
+        mov eax, esi
+        mul L
+        mov edi, eax
+        
+        mov al, L
+        cbw
+        cwde
+        mov ebx, eax
+        
+        xor edx, edx
+        call generate_single
+        div ebx
+        
+        add edi, edx
+        
+        call generate_single
+        shl eax, 29
+        shr eax, 29
+        ;outnumln eax,,b
+        
+        xor edx, edx
+        mov dl, 1
+        mov cl, al
+        shl dl, cl
+        mov dh, [ebp+edi]
+        
+        call generate_single
+        cmp al, 128
+        jb mutate_bit_start
+        jmp mutate_bit_end
+        
+        mutate_bit_start:
+        
+            xor dh, dl
+            mov [ebp+edi], dh
+            jmp mutate_bit_end
+        
+        mutate_bit_end:
+        
+        inc esi
+        dec ch
+        cmp ch, 0
+        jne mutate_loop_start
+        jmp mutate_loop_end
+    
+    mutate_loop_end:
+    
+    pop edi
+    pop esi
+    pop ebp
+    pop edx
+    pop ecx
+    pop ebx
+    pop eax
+    
+    ret
+mutate endp
+
 start:
 
     ;generate A-array
 
     inint L
-    
-    mov al, L
-    cbw
-    mov bl, 2
-    div bl
-    mov Lf, al
-    add al, ah
-    mov Lm, al
     
     ;outint Lm
     ;outchar ' '
@@ -535,7 +843,7 @@ start:
     A_input:
     
         inint elem
-        mov al, elem
+        mov eax, elem
         mov A[esi], al
         
         outstr 'A'
@@ -570,12 +878,11 @@ start:
     cwde
     mov ecx, eax
     ;outintln ecx
+    mov LM, ecx
     xor eax, eax
     xor edx, edx
     
-    mov al, elem
-    cbw
-    cwde
+    mov eax, elem
     
     mov edx, a
     mov ebx, m
@@ -584,11 +891,21 @@ start:
     
     call generate_array
     
+    mov ecx, 2000
+    mov esi, 0
+    
     solve:
+        
+        outstr 'iteration: '
+        outintln esi
     
         lea ebp, vint
         lea ebx, V
         call calculate_residuals
+        
+        mov al, solved
+        cmp al, 0
+        je end_solve 
         
         lea ebp, V
         call sum_array
@@ -602,9 +919,17 @@ start:
         lea ebx, prefarr
         call prefix_sum
         
-        call select_single_ids
+        ;call new_child
         
         call new_generation
+        call swap_generations
+        
+        call mutate
+        
+        inc esi
+        dec ecx
+        cmp ecx, 0
+        jne solve
         
     end_solve:
     
