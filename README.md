@@ -1,2 +1,2 @@
 # diophantines
-Diophantine equation solver
+Diophantine equation solver (Second-term project).
